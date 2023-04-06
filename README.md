@@ -9,7 +9,7 @@ Classes list:
 The game can be played directly in the console, the display() function linking all of the classes together.
 
 Input examples for a short game: 
--105, creating 5 cargo ships
--305, creating 5 fighters
--5011 several times, in order to gather resources for a colony
--6111, attempts to find a new planet for colonization
+  -105, creating 5 cargo ships
+  -305, creating 5 fighters
+  -5011 several times, in order to gather resources for a colony
+  -6111, attempts to find a new planet for colonization
