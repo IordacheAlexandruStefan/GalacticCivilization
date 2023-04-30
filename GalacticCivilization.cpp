@@ -4,24 +4,27 @@
 #include <stdio.h>
 #include <conio.h>
 #include <iomanip>
+#include <exception>
 
 using namespace std;
 
+//easy medium hard
+
 bool attack(int& fighters)
 {
-    double temp;
+    int temp;
     int ShipsLost;
     random_device rd;
-    uniform_real_distribution<double> dist(0.0, 2.5);
+    uniform_real_distribution<double> dist(0, 100);
     temp = dist(rd);
-    if (temp > 1)
+    if (temp > 30)
     {
         temp = dist(rd);
-        if (temp > 1)
+        if (temp * fighters / (fighters+ 1) < 30)
             return false;
         else
         {
-            ShipsLost = fighters * temp;
+            ShipsLost = fighters * temp/100;
             cout << "Attack won, ships lost: " << ShipsLost <<"\n";
             fighters -= ShipsLost;
             return true;
@@ -30,36 +33,101 @@ bool attack(int& fighters)
     else
         return true;
 }
-
 class fleet {
-private:
-    int fighter, cargo, civil;
-    int CostFighter=500, CostCargo=200, CostCivil=300;
+protected:
+    int cost, count;
 public:
-    
-
-    fleet()
+    virtual void construction(int x) = 0;
+    virtual int getInfo() = 0;
+    fleet(int x)
     {
-        fighter = 0;
-        cargo = 0;
-        civil = 0;
+        cost = x;
+        count = 0;
     }
-    friend fleet operator+ (fleet x);
-    friend ostream& operator<< (ostream& COUT,fleet& x);
-
-    friend class PlanetNode;
-    friend class planet;
-    friend void display();
+    int getCost() {
+        return cost;
+    }
+    int getCount() {
+        return count;
+    }
+    virtual ~fleet() {}
 };
+
+class fighters : public fleet {
+private:
+    int power = 1000;
+public:
+    fighters() : fleet(500){}
+    void construction(int x) {
+        count += x;
+        cout << "The fleet has " << x << " more fighter";
+        if (x != 1)
+            cout << "s!\n";
+        else
+            cout << "!\n";
+    }
+    int getInfo() {
+        cout << "Nothing yet...";
+        return 0;
+    }
+    friend class planet;
+    friend class PlanetNode;
+};
+class transporters : public fleet {
+private:
+    int bay = 10000;
+public:
+    transporters() : fleet(300){}
+    void construction(int x) {
+        count += x;
+        cout << "The fleet has " << x << " more cargo ship";
+        if (x != 1)
+            cout << "s!\n";
+        else
+            cout << "!\n";
+    }
+    int getInfo() {
+        return bay;
+    }
+    friend class planet;
+    friend class PlanetNode;
+};
+class civil : public fleet {
+private:
+    int seats = 100;
+public:
+    civil() : fleet(200){}
+    void construction(int x) {
+        count += x;
+        cout << "The fleet has " << x << " more civil ship";
+        if (x != 1)
+            cout << "s!\n";
+        else
+            cout << "!\n";
+    }
+    int getInfo(){
+        return seats;
+    }
+    friend class planet;
+    friend class PlanetNode;
+};
+
+class notEnoughResources : public exception {
+public:
+    const char* what() const throw() {
+        return "Not enough resources!\n";
+    }
+};
+
 class planet {
 private:
     double distance;
-    long long int resources, population;
-    int CargoBay = 10000 , Seats=100 , DefaultResources=10000, DefaultPopulation=1000;
-    fleet ships;
+    int resources, population;
+    int DefaultResources = 10000, DefaultPopulation = 1000;
+    fighters s_fight;
+    transporters s_transport;
+    civil s_civil;
 public:
-    
-
     planet()
     {
         distance = 0;
@@ -70,28 +138,26 @@ public:
     planet(double RandomDistance, int Cargos, int Civils, int Fighters)
     {
         distance = RandomDistance;
-        resources = CargoBay * Cargos;
-        population = Seats * Civils;
-        ships.cargo = Cargos;
-        ships.civil = Civils;
-        ships.fighter = Fighters;
+        resources = s_transport.bay * Cargos;
+        population = s_civil.seats * Civils;
+        s_transport.count = Cargos;
+        s_civil.count = Civils;
+        s_fight.count = Fighters;
     }
-    ~planet()
-    {
+    ~planet(){}
+    int getResources() {
+        return resources;
     }
-    friend ostream& operator << (ostream& COUT, planet& x);
-
     void AsteroidMining(int Fighters, int Cargos);
     void NewCargo(int x);
     void NewFighter(int x);
     void NewCivil(int x);
     
-    friend class fleet;
+    friend ostream& operator << (ostream& COUT, planet& x);
     friend class PlanetNode;
-    friend void display();
-    friend void printPlanets(PlanetNode* n);
-    friend void populationIncrease(PlanetNode* n);
-    friend void colonyCheck(PlanetNode* n);
+    friend class home;
+    friend class shipyard;
+    friend void populationIncrease();
 };
 class Disasters {
 public:
@@ -136,29 +202,32 @@ public:
     {
         PlanetCounter--;
     }
+    static int getPlanetCounter() {
+        return PlanetCounter;
+    }
     void Colony(int x, int y, int z);
     void addPlanet(planet x);
     void Transport(int cargos, int destination);
     void Disaster();
-    friend void display();
-    friend void printPlanets(PlanetNode* n);
-    friend void populationIncrease(PlanetNode* n);
-    friend void colonyCheck(PlanetNode* n);
+    static void printPlanets();
+    void populationIncrease();
+    void colonyCheck();
+
+    friend class planet;
 };
 
-int PlanetNode::PlanetCounter = 1;
-
+int PlanetNode::PlanetCounter = 0;
 PlanetNode* earth = new PlanetNode();
 
 void PlanetNode::Transport(int cargos, int y)
 {
     PlanetNode* n = earth;
-    earth->x.resources -= cargos * earth->x.CargoBay;
+    earth->x.resources -= cargos * earth->x.s_transport.bay;
     for (int i = 1; i <= y; i++)
     {
         n = n->next;
     }
-    n->x.resources+= cargos * n->x.CargoBay;
+    n->x.resources += cargos * n->x.s_transport.bay;
     cout << "Transport DONE!\n";
 }
 void PlanetNode::addPlanet(planet y) {
@@ -171,29 +240,28 @@ void PlanetNode::addPlanet(planet y) {
         n = n->next;
     }
     n->next = newPlanet;
-    PlanetCounter++;
 }
 void PlanetNode::Colony(int x, int y, int z)
 {
 
-    if (this->x.ships.cargo >= y && this->x.ships.civil >= z && this->x.ships.fighter >= x)
+    if (this->x.s_transport.count >= y && this->x.s_civil.count >= z && this->x.s_fight.count >= x)
     {
-        if (this->x.resources >= y * this->x.CargoBay)
+        if (this->x.resources >= y * this->x.s_transport.bay)
         {
-            if (this->x.population >= z * this->x.Seats)
+            if (this->x.population >= z * this->x.s_civil.seats)
             {
-                this->x.resources -= y * this->x.CargoBay;
-                this->x.population -= z * this->x.Seats;
-                this->x.ships.cargo -= y;
-                this->x.ships.civil -= z;
-                this->x.ships.fighter -= x;
+                this->x.resources -= y * this->x.s_transport.bay;
+                this->x.population -= z * this->x.s_civil.seats;
+                this->x.s_transport.count -= y;
+                this->x.s_civil.count -= z;
+                this->x.s_fight.count -= x;
                 if (attack(x) == true)
                 {
                     double Distance;
                     random_device rd;
                     uniform_real_distribution<double> dist(0.1, 5.0);
                     Distance = dist(rd);
-                    planet newPlanet(Distance, x, y, z);
+                    planet newPlanet(Distance, z, y, x);
                     addPlanet(newPlanet);
                     cout << "Colonization successful!\n\n";
                 }
@@ -231,16 +299,17 @@ void PlanetNode::Disaster()
     }
 }
 
-void printPlanets(PlanetNode*n)
+static void printPlanets()
 {
+    PlanetNode* n = earth;
     while (n != NULL)
     {
         if (n->disaster.Duration != 0)
-            cout << "\033[1;31m" << n->x <<char(31)<< "\n" << n->x.ships << "\033[0m";
+            cout << "\033[1;31m" << n->x << "\033[0m";
         else
         {
             n->Disaster();
-            cout << n->x << "\n" << n->x.ships;
+            cout << n->x;
         }
         n = n->next;
         for (int i = 1; i < 20; i++)
@@ -250,8 +319,9 @@ void printPlanets(PlanetNode*n)
         cout<< "\n";
     }
 }
-void populationIncrease(PlanetNode* n)
+void populationIncrease()
 {
+    PlanetNode* n = earth;
     random_device rd;
     uniform_real_distribution<double> dist(1.015, 1.025);
     double temp = dist(rd);
@@ -271,11 +341,12 @@ void populationIncrease(PlanetNode* n)
         n = n->next;
     }
 }
-void colonyCheck(PlanetNode* n)
+void colonyCheck()
 {
+    PlanetNode* n = earth;
     while (n->next != NULL)
     {
-        if ((n->next)->x.resources < 0)
+        if ((n->next)->x.getResources() < 0)
         {
             PlanetNode* temp = (n->next)->next;
             delete n->next;
@@ -288,7 +359,7 @@ void colonyCheck(PlanetNode* n)
 
 void planet::AsteroidMining(int x, int y)
 {
-    if (ships.cargo >= y && ships.fighter >= x)
+    if (s_transport.count >= y && s_fight.count >= x)
     {
         int x_copy = x;
         if (attack(x) == true)
@@ -296,19 +367,19 @@ void planet::AsteroidMining(int x, int y)
             double temp;
             int temp_2;
             temp_2 = x_copy - x;
-            ships.fighter -= temp_2;
+            s_fight.count -= temp_2;
             random_device rd;
             uniform_real_distribution<double> dist(0.0, 1.0);
             temp = dist(rd);
-            temp_2= y * CargoBay * temp;
+            temp_2= y * s_transport.bay * temp;
             resources += temp_2;
             cout << "Expedition successful: +"<<temp_2<<" resources\n";
             cout << "\n";
         }
         else
         {
-            ships.fighter -= x;
-            ships.cargo -= y;
+            s_fight.count -= x;
+            s_transport.count -= y;
             cout << "Attack lost. The fleet has been lost\n";
             cout << "\n";
         }
@@ -316,54 +387,40 @@ void planet::AsteroidMining(int x, int y)
     else
         cout << "Not enough ships!\n\n";
 }
+
 void planet::NewCargo(int x)
 {
-    if (resources >= x * ships.CostCargo)
-    {
-        ships.cargo += x;
-        resources -= x * ships.CostCargo;
-        cout << "The fleet has " << x << " more cargo ship";
-        if (x != 1)
-            cout << "s!\n";
-        else
-            cout << "!\n";
+    try {
+        if (resources < x * s_transport.cost)
+            throw notEnoughResources();
+        resources -= x * s_transport.cost;
+        s_transport.construction(x);
     }
-    else
-    {
-        cout << "Not enough resources!\n";
+    catch (notEnoughResources& x) {
+        cout << x.what();
     }
 }
 void planet::NewCivil(int x)
 {
-    if (resources >= x * ships.CostCivil)
-    {
-        ships.civil += x;
-        resources -= x * ships.CostCivil;
-        cout << "The fleet has " << x << " more civil ship";
-        if (x != 1)
-            cout << "s!\n";
-        else
-            cout << "!\n";
+    try {
+        if (resources < x * s_civil.cost)
+            throw notEnoughResources();
+        resources -= x * s_civil.cost;
+        s_civil.construction(x);
     }
-    else
-    {
+    catch (notEnoughResources& x) {
         cout << "Not enough resources!\n";
     }
 }
 void planet::NewFighter(int x)
 {
-    if (resources >= x * ships.CostFighter)
-    {
-        ships.fighter += x;
-        resources -= x * ships.CostFighter;
-        cout << "The fleet has " << x << " more fighter";
-        if (x != 1)
-            cout << "s!\n";
-        else
-            cout << "!\n";
+    try {
+        if (resources < x * s_fight.cost)
+            throw notEnoughResources();
+        resources -= x * s_fight.cost;
+        s_fight.construction(x);
     }
-    else
-    {
+    catch (notEnoughResources& x) {
         cout << "Not enough resources!\n";
     }
 }
@@ -376,50 +433,137 @@ ostream& operator<< (ostream& COUT, planet& x)
     {
         COUT << "COLONY: "<< setprecision(3) << x.distance <<" Light-Years\n";
     }
-    COUT <<"Population: " << x.population <<"\n";
-    COUT << "Resources: " << x.resources;
-    //COUT << x.ships << "\n";
-    return COUT;
-}
-ostream& operator<< (ostream& COUT, fleet& x)
-{
-    COUT << "Cargo ships: " << x.cargo << endl;
-    COUT << "Civil ships: " << x.civil << endl;
-    COUT << "Fighters: " << x.fighter << endl;
+    COUT << "Population: " << x.population <<"\n";
+    COUT << "Resources: " << x.resources << "\n";
+    COUT << "Fighters: " << x.s_fight.getCount() << "\n";
+    COUT << "Cargos: " << x.s_transport.getCount() << "\n";
+    COUT << "Civil: " << x.s_civil.getCount() << "\n";
     return COUT;
 }
 
+class menu {
+public:
+    virtual void page() = 0;
+};
+
+class home : public menu {
+public:
+    void page()
+    {
+        cout << R"(   ___ _                  _
+  / _ \ | __ _ _ __   ___| |_ ___
+ / /_)/ |/ _` | '_ \ / _ \ __/ __|
+/ ___/| | (_| | | | |  __/ |_\__ \
+\/    |_|\__,_|_| |_|\___|\__|___/)" << "\n\n";
+        cout << "No. of planets: " << PlanetNode::getPlanetCounter() << "\n\n";
+        cout << "Cargo_Bay = " << earth->x.s_transport.getInfo() << " | Civil_Ship_Seats = " << earth->x.s_civil.getInfo() << "\n\n";
+        populationIncrease();
+        printPlanets();
+        if (PlanetNode::getPlanetCounter() > 1) {
+            colonyCheck();
+        }
+        cout << "\nInput_Structure: [abcd]\n\n" << "a = the desired action: 1 - shipyard | 2 - transport | 3 - colony | 4 - asteroid mining\n";
+        cout << "b = the planet affected ( the planet of destination for the transport, none for the colony ), indexed from 0\n";
+        cout << "b, c, d = the number of ships sent, cargos for transport, cargos and fighters for asteroid mining, all for colonies\n\n";
+        cout << "Your input here: ";
+    }
+};
+class shipyard : public menu {
+private:
+    int PlanetIndex;
+    PlanetNode* Planet;
+public:
+    shipyard(int x, PlanetNode* y) {
+        PlanetIndex = x;
+        Planet = y;
+    }
+    void page() {
+        int x, ok = 1, z;
+        while(ok==1)
+        {
+            system("CLS");
+            cout << R"( __ _     _                           _ 
+/ _\ |__ (_)_ __  _   _  __ _ _ __ __| |
+\ \| '_ \| | '_ \| | | |/ _` | '__/ _` |
+_\ \ | | | | |_) | |_| | (_| | | | (_| |
+\__/_| |_|_| .__/ \__, |\__,_|_|  \__,_|
+           |_|    |___/                 
+
+)";
+            cout << "Planet: " << PlanetIndex << "\n";
+            cout << "Resources: " << Planet->x.resources << "\n\n";
+            cout << "Cargo_Cost = " << earth->x.s_transport.getCost() << " | Civil_Cost = " << earth->x.s_civil.getCost() << " | Fighter_Cost = " << earth->x.s_fight.getCost() << "\n\n";
+            cout << "Fighters: " << Planet->x.s_fight.getCount() << "\n";
+            cout << "Cargos: " << Planet->x.s_transport.getCount() << "\n";
+            cout << "Civil: " << Planet->x.s_civil.getCount() << "\n\n";
+            cout << "Ship type: "; cin >> x;
+            switch (x) {
+            case 0:
+                ok = 0;
+                break;
+            case 1:
+                cout << "Number: "; cin >> z;
+                Planet->x.NewFighter(z);
+                Sleep(1500);
+                break;
+            case 2:
+                cin >> z;
+                Planet->x.NewCargo(z);
+                Sleep(1500);
+                break;
+            case 3:
+                cin >> z;
+                Planet->x.NewCivil(z);
+                Sleep(1500);
+            }
+        }
+    }
+};
+class game_over : public menu {
+public:
+    void page() {
+        PlanetNode::PlanetCounter = 0;
+        cout << "\033[1;31m" << R"(   ___                         ___                 
+  / _ \__ _ _ __ ___   ___    /___\__   _____ _ __ 
+ / /_\/ _` | '_ ` _ \ / _ \  //  //\ \ / / _ \ '__|
+/ /_\\ (_| | | | | | |  __/ / \_//  \ V /  __/ |   
+\____/\__,_|_| |_| |_|\___| \___/    \_/ \___|_|   )" << "\033[0m\n";
+        cout << "\nTry Again? [y/n]\n";
+    }
+    bool gameOver() {
+        char c;
+        cin >> c;
+        system("CLS");
+        if (c == 'y')
+        {
+            PlanetNode* x = new(PlanetNode);
+            earth = x;
+            return true;
+        }
+        return false;
+    }
+    game_over(){}
+    ~game_over(){}
+};
+
 void display()
 {
+    home HomeScreen;
     bool ok = 1;
     char input[5];
     while (ok == 1)
     {
-        cout << "Cargo_Bay = " << earth->x.CargoBay << " | Civil_Ship_Seats = " << earth->x.Seats<<"\n";
-        cout << "Cargo_Cost = " << earth->x.ships.CostCargo << " | Civil_Cost = " << earth->x.ships.CostCivil << " | Fighter_Cost = " << earth->x.ships.CostFighter  << "\n\n";
-        if (earth->x.resources < 0)
+        if (earth->x.getResources() < 0)
         {
             system("CLS");
-            char c;
-            cout << "\033[1;31mTry Again?\033[0m [y/n]\n";
-            cin >> c;
-            if (c == 'y')
-            {
-                PlanetNode* x = new(PlanetNode);
-                earth = x;
-            }
-            else
+            game_over GameOverScreen;
+            GameOverScreen.page();
+            if (GameOverScreen.gameOver() != true)
                 break;
         }
-        populationIncrease(earth);
-        colonyCheck(earth);
-        printPlanets(earth);
         PlanetNode* n = earth;
-        cout << "\nInput_Structure: [abcde]\n\n" << "a = the desired action: [1-3] - new ships | 4 - transport | 5 - asteroid mining | 6 - colony\n";
-        cout << "b = the planet affected ( the planet of destination for the transport, none for the colony ), indexed from 0\n";
-        cout << "c, d, e = the number of ships sent, cargos for transport, cargos and fighters for asteroid mining, all for colonies\n\n";
-        cout << "Your input here: ";
         input[0] = '0';
+        HomeScreen.page();
         Sleep(500);
         if (_kbhit()!=0)
         {
@@ -435,50 +579,26 @@ void display()
                 {
                     n = n->next;
                 }
-                n->x.NewCargo(int(input[2]) - 48);
+                shipyard ShipyardScreen(int(input[1]) - 48, n);
+                ShipyardScreen.page();
             }
             else
                 cout << "Wrong input!";
             Sleep(1500);
             break;
         case '2':
-            if (int(input[1]) - 48 < PlanetNode::PlanetCounter)
-            {
-                for (int i = 1; i <= int(input[1]) - 48; i++)
-                {
-                    n = n->next;
-                }
-                n->x.NewCivil(int(input[2]) - 48);
+            if ((int(input[1]) - 48) < PlanetNode::PlanetCounter){
+                earth->Transport(int(input[2]) - 48, (int(input[1]) - 48));
             }
             else
                 cout << "Wrong input!";
             Sleep(1500);
             break;
         case '3':
-            if (int(input[1]) - 48 < PlanetNode::PlanetCounter)
-            {
-                for (int i = 1; i <= int(input[1]) - 48; i++)
-                {
-                    n = n->next;
-                }
-                n->x.NewFighter(int(input[2]) - 48);
-            }
-            else
-                cout << "Wrong input!";
-            Sleep(1500);
-            break;
-        case '4':
-            if (int(input[2]) - 48 < PlanetNode::PlanetCounter)
-                earth->Transport(int(input[2]) - 48, (int(input[1]) - 48));
-            else
-                cout << "Wrong input!";
-            Sleep(1500);
-            break;
-        case '6':
             earth->Colony((int(input[1]) - 48), int(input[2]) - 48, int(input[3]) - 48);
             Sleep(1500);
             break;
-        case '5':
+        case '4':
             if (int(input[1]) - 48 < PlanetNode::PlanetCounter)
             {
                 for (int i = 1; i <= int(input[1]) - 48; i++)
@@ -490,7 +610,6 @@ void display()
             else
                 cout << "Wrong input!";
             Sleep(1500);
-            break;
         }
         system("CLS");
     }
