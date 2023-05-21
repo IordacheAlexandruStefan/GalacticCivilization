@@ -33,17 +33,22 @@ bool attack(int& fighters)
     else
         return true;
 }
+template <typename T>
 class fleet {
 protected:
     int cost, count;
+    T attribute;
+
 public:
-    virtual void construction(int x) = 0;
-    virtual int getInfo() = 0;
-    fleet(int x)
+    fleet(int x, T attr)
     {
         cost = x;
         count = 0;
+        attribute = attr;
     }
+    virtual void construction(int x) = 0;
+    virtual T getInfo() = 0;
+
     int getCost() {
         return cost;
     }
@@ -53,60 +58,59 @@ public:
     virtual ~fleet() {}
 };
 
-class fighters : public fleet {
-private:
-    int power = 1000;
+template <typename T>
+class fighters : public fleet<T> {
 public:
-    fighters() : fleet(500){}
+    fighters() : fleet<T>(500, 1000) {}
     void construction(int x) {
-        count += x;
+        this->count += x;
         cout << "The fleet has " << x << " more fighter";
         if (x != 1)
             cout << "s!\n";
         else
             cout << "!\n";
     }
-    int getInfo() {
+    T getInfo() {
         cout << "Nothing yet...";
-        return 0;
+        return this->attribute;
     }
     friend class planet;
     friend class PlanetNode;
 };
-class transporters : public fleet {
-private:
-    int bay = 10000;
+
+template <typename T>
+class transporters : public fleet<T> {
 public:
-    transporters() : fleet(300){}
+    transporters() : fleet<T>(300, 10000) {}
     void construction(int x) {
-        count += x;
+        this->count += x;
         cout << "The fleet has " << x << " more cargo ship";
         if (x != 1)
             cout << "s!\n";
         else
             cout << "!\n";
     }
-    int getInfo() {
-        return bay;
+    T getInfo() {
+        return this->attribute;
     }
     friend class planet;
     friend class PlanetNode;
 };
-class civil : public fleet {
-private:
-    int seats = 100;
+
+template <typename T>
+class civil : public fleet<T> {
 public:
-    civil() : fleet(200){}
+    civil() : fleet<T>(200, 100) {}
     void construction(int x) {
-        count += x;
+        this->count += x;
         cout << "The fleet has " << x << " more civil ship";
         if (x != 1)
             cout << "s!\n";
         else
             cout << "!\n";
     }
-    int getInfo(){
-        return seats;
+    T getInfo() {
+        return this->attribute;
     }
     friend class planet;
     friend class PlanetNode;
@@ -124,9 +128,9 @@ private:
     double distance;
     int resources, population;
     int DefaultResources = 10000, DefaultPopulation = 1000;
-    fighters s_fight;
-    transporters s_transport;
-    civil s_civil;
+    fighters<int> s_fight;
+    transporters<int> s_transport;
+    civil<int> s_civil;
 public:
     planet()
     {
@@ -138,8 +142,8 @@ public:
     planet(double RandomDistance, int Cargos, int Civils, int Fighters)
     {
         distance = RandomDistance;
-        resources = s_transport.bay * Cargos;
-        population = s_civil.seats * Civils;
+        resources = s_transport.getInfo() * Cargos;
+        population = s_civil.getInfo() * Civils;
         s_transport.count = Cargos;
         s_civil.count = Civils;
         s_fight.count = Fighters;
@@ -222,12 +226,12 @@ PlanetNode* earth = new PlanetNode();
 void PlanetNode::Transport(int cargos, int y)
 {
     PlanetNode* n = earth;
-    earth->x.resources -= cargos * earth->x.s_transport.bay;
+    earth->x.resources -= cargos * earth->x.s_transport.getInfo();
     for (int i = 1; i <= y; i++)
     {
         n = n->next;
     }
-    n->x.resources += cargos * n->x.s_transport.bay;
+    n->x.resources += cargos * n->x.s_transport.getInfo();
     cout << "Transport DONE!\n";
 }
 void PlanetNode::addPlanet(planet y) {
@@ -246,12 +250,12 @@ void PlanetNode::Colony(int x, int y, int z)
 
     if (this->x.s_transport.count >= y && this->x.s_civil.count >= z && this->x.s_fight.count >= x)
     {
-        if (this->x.resources >= y * this->x.s_transport.bay)
+        if (this->x.resources >= y * this->x.s_transport.getInfo())
         {
-            if (this->x.population >= z * this->x.s_civil.seats)
+            if (this->x.population >= z * this->x.s_civil.getInfo())
             {
-                this->x.resources -= y * this->x.s_transport.bay;
-                this->x.population -= z * this->x.s_civil.seats;
+                this->x.resources -= y * this->x.s_transport.getInfo();
+                this->x.population -= z * this->x.s_civil.getInfo();
                 this->x.s_transport.count -= y;
                 this->x.s_civil.count -= z;
                 this->x.s_fight.count -= x;
@@ -371,7 +375,7 @@ void planet::AsteroidMining(int x, int y)
             random_device rd;
             uniform_real_distribution<double> dist(0.0, 1.0);
             temp = dist(rd);
-            temp_2= y * s_transport.bay * temp;
+            temp_2= y * s_transport.getInfo() * temp;
             resources += temp_2;
             cout << "Expedition successful: +"<<temp_2<<" resources\n";
             cout << "\n";
@@ -448,6 +452,8 @@ public:
 
 class home : public menu {
 public:
+    static home* getInstance();
+
     void page()
     {
         cout << R"(   ___ _                  _
@@ -467,7 +473,23 @@ public:
         cout << "b, c, d = the number of ships sent, cargos for transport, cargos and fighters for asteroid mining, all for colonies\n\n";
         cout << "Your input here: ";
     }
+
+private:
+    static home* instance;
+    home() = default;
+    home(const home&) = delete;
+    home& operator=(const home&) = delete;
 };
+
+home* home::instance = nullptr;
+
+home* home::getInstance() {
+    if (instance == nullptr) {
+        instance = new home();
+    }
+    return instance;
+}
+
 class shipyard : public menu {
 private:
     int PlanetIndex;
@@ -548,7 +570,7 @@ public:
 
 void display()
 {
-    home HomeScreen;
+    home* myHome = home::getInstance();
     bool ok = 1;
     char input[5];
     while (ok == 1)
@@ -563,7 +585,7 @@ void display()
         }
         PlanetNode* n = earth;
         input[0] = '0';
-        HomeScreen.page();
+        myHome->page();
         Sleep(500);
         if (_kbhit()!=0)
         {
